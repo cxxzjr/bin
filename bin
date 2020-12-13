@@ -1,0 +1,115 @@
+#include <Servo.h>
+
+Servo myservo;  // create servo object to control a servo
+#define SPEED 5 
+#define CLOSETIME 3000  //关闭垃圾桶延时
+
+#define MIN_ANGLE 180
+#define MAX_ANGLE 100 
+
+#define OPEN_DIS 15
+
+
+
+
+//引脚定义
+const int EchoPin = 12;    //超声波接受引脚
+const int TrigPin = 13;    //超声波触发引脚
+
+float cm;                  //超声波直接检测到的距离
+float cm_filter = 0;       //超声波滤波后得到的距离
+
+float k = 0.5;             //滤波系数
+
+float get_ultrasonic_dis(); //距离读取并滤波
+
+/**
+* Function       setup
+* @author        George
+* @date          2017.07.25
+* @brief         初始化配置
+* @param[in]     void
+* @retval        void
+* @par History   无
+*/
+void setup(){ 
+  Serial.begin(9600); 
+  
+  pinMode(TrigPin, OUTPUT); 
+  pinMode(EchoPin, INPUT); 
+
+  digitalWrite(TrigPin, LOW); //低高低电平发一个短时间脉冲去TrigPin 
+  delayMicroseconds(2); 
+  digitalWrite(TrigPin, HIGH); 
+  delayMicroseconds(10); 
+  digitalWrite(TrigPin, LOW); 
+
+  cm = pulseIn(EchoPin, HIGH) / 58.0; //将回波时间换算成cm 
+  cm_filter = cm;
+
+
+  myservo.attach(9);  // attaches the servo on pin 9 to the servo object
+
+  for(int i = MIN_ANGLE; i > MAX_ANGLE; i--){
+     myservo.write(i);
+     delay(50);
+  }
+  for(int i = MAX_ANGLE; i < MIN_ANGLE; i++){
+     myservo.write(i);
+     delay(50);
+  }
+
+
+
+} 
+
+/**
+* Function       loop
+* @author        George
+* @brief         获取数据并打印
+* @param[in]     void
+* @retval        void
+* @par History   无
+*/
+char flag_open = 0;
+
+
+
+void loop() { 
+  float dis = get_ultrasonic_dis();
+  if(dis < OPEN_DIS && flag_open == 0 ){
+      flag_open = 1;
+      for(int i = MIN_ANGLE; i >  MAX_ANGLE; i--){
+        myservo.write(i);
+        delay(20);
+      }
+  }else if( dis > OPEN_DIS && flag_open == 1 ){
+      delay(CLOSETIME);
+      flag_open = 0;
+      for(int i = MAX_ANGLE; i < MIN_ANGLE; i++){
+        myservo.write(i);
+        delay(20);
+      }
+  }
+  Serial.print("Distance:"); 
+  Serial.print(dis); 
+  Serial.print("cm"); 
+  Serial.println(); 
+  delay(20); 
+}
+
+
+float get_ultrasonic_dis(){
+  
+  digitalWrite(TrigPin, LOW); //低高低电平发一个短时间脉冲去TrigPin 
+  delayMicroseconds(2); 
+  digitalWrite(TrigPin, HIGH); 
+  delayMicroseconds(10); 
+  digitalWrite(TrigPin, LOW); 
+
+  //一阶互补滤波算法
+  cm = pulseIn(EchoPin, HIGH) / 58.0; //将回波时间换算成cm 
+  cm_filter = (1.0 - k)*cm_filter + k * cm;
+  if(cm_filter > 350) cm_filter = 350;
+  return cm_filter;
+}
